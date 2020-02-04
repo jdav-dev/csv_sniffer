@@ -57,23 +57,23 @@ defmodule CsvSnifferTest do
   'Stonecutters ''Seafood'' and Chop House'+ 'Lemont'+ 'IL'+ '12/19/02'+ 'Week Back'
   """
 
-  describe "has_header?/2" do
-    test "returns false for a sample without headers" do
-      refute CsvSniffer.has_header?(@sample1)
-    end
+  # describe "has_header?/1" do
+  #   test "returns false for a sample without headers" do
+  #     refute CsvSniffer.has_header?(@sample1)
+  #   end
 
-    test "returns true for a sample with headers" do
-      assert CsvSniffer.has_header?(@header1 <> @sample1)
-    end
+  #   test "returns true for a sample with headers" do
+  #     assert CsvSniffer.has_header?(@header1 <> @sample1)
+  #   end
 
-    test "returns false for a sample without headers and a special delimiter" do
-      refute CsvSniffer.has_header?(@sample8)
-    end
+  #   test "returns false for a sample without headers and a special delimiter" do
+  #     refute CsvSniffer.has_header?(@sample8)
+  #   end
 
-    test "returns true for a sample with headers and a special delimiter" do
-      assert CsvSniffer.has_header?(@header2 <> @sample8)
-    end
-  end
+  #   test "returns true for a sample with headers and a special delimiter" do
+  #     assert CsvSniffer.has_header?(@header2 <> @sample8)
+  #   end
+  # end
 
   describe "sniff/2" do
     test ~s/on header ";'123;4';"/ do

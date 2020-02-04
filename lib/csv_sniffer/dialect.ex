@@ -1,6 +1,6 @@
 defmodule CsvSniffer.Dialect do
   @moduledoc """
-  TODO
+  Describe a CSV dialect.
   """
 
   @type t :: %__MODULE__{

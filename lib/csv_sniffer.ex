@@ -9,22 +9,10 @@ defmodule CsvSniffer do
   @preferred [",", "\t", ";", " ", ":"]
 
   @doc """
-  Creates a dictionary of types of data in each column.  If any column is of a single type (say,
-  integers), *except* for the first row, then the first row is presumed to be labels.  If the type
-  can't be determined, it is assumed to be a string in which case the length of the string is the
-  determining factor: if all of the rows except for the first are the same length, it's a header.
-  Finally, a 'vote' is taken at the end for each column, adding or subtracting from the likelihood
-  of the first row being a header.
-  """
-  def has_header?(_enum, _opts \\ []) do
-    false
-  end
-
-  @doc """
   "Sniffs" the format of a CSV file (i.e. delimiter, quote character).
-
-  Returns a Dialect struct.
   """
+  @spec sniff(data :: Enumerable.t() | binary(), delimiters: [String.t()]) ::
+          {:ok, Dialect.t()} | {:error, reason :: any()}
   def sniff(data, opts \\ [])
 
   def sniff(data, opts) when is_binary(data) do
