@@ -105,28 +105,31 @@ defmodule CsvSniffer do
   defp count_matches({names, matches}, delimiters) do
     initial_acc = %{quote: %{}, delim: %{}, space: 0}
 
-    matches
-    |> Enum.reduce(initial_acc, fn match, intermediate_acc ->
+    Enum.reduce(matches, initial_acc, fn match, acc ->
       names
       |> Enum.zip(match)
-      |> Enum.reduce(intermediate_acc, fn
-        {"quote", value}, acc ->
-          update_in(acc, [:quote, value], &((&1 || 0) + 1))
+      |> reduce_zipped_matches(acc, delimiters)
+    end)
+  end
 
-        {"delim", value}, acc ->
-          if !delimiters || value in delimiters do
-            update_in(acc, [:delim, value], &((&1 || 0) + 1))
-          else
-            acc
-          end
+  defp reduce_zipped_matches(zipped_matches, acc, delimiters) do
+    Enum.reduce(zipped_matches, acc, fn
+      {"quote", value}, acc ->
+        update_in(acc, [:quote, value], &((&1 || 0) + 1))
 
-        {"space", value}, acc ->
-          if is_nil(value) or value == "" do
-            acc
-          else
-            Map.update(acc, :space, 1, &((&1 || 0) + 1))
-          end
-      end)
+      {"delim", value}, acc ->
+        if !delimiters || value in delimiters do
+          update_in(acc, [:delim, value], &((&1 || 0) + 1))
+        else
+          acc
+        end
+
+      {"space", value}, acc ->
+        if is_nil(value) or value == "" do
+          acc
+        else
+          Map.update(acc, :space, 1, &((&1 || 0) + 1))
+        end
     end)
   end
 
@@ -134,10 +137,10 @@ defmodule CsvSniffer do
     quote_character = max_by_value(quotes) || "\""
     delimiter = max_by_value(delimiters)
     skip_initial_space = delimiters[delimiter] == spaces
-    delimiter = if delimiter == "\n", do: "", else: delimiter
+    non_newline_delimiter = if delimiter == "\n", do: "", else: delimiter
 
     %Dialect{
-      delimiter: delimiter,
+      delimiter: non_newline_delimiter,
       quote_character: quote_character,
       skip_initial_space: skip_initial_space
     }
@@ -162,9 +165,9 @@ defmodule CsvSniffer do
     # If we see an extra quote between delimiters, we've got a double quoted format.
     double_quote_regex =
       Regex.compile!(
-        "((#{escaped_delimiter})|^)\W*#{escaped_quote_character}[^#{escaped_delimiter}\n]*#{
-          escaped_quote_character
-        }[^#{escaped_delimiter}\n]*#{escaped_quote_character}\W*((#{escaped_delimiter})|$)",
+        "((#{escaped_delimiter})|^)\W*#{escaped_quote_character}[^#{escaped_delimiter}\n]*" <>
+          "#{escaped_quote_character}[^#{escaped_delimiter}\n]*#{escaped_quote_character}\W*" <>
+          "((#{escaped_delimiter})|$)",
         "m"
       )
 
@@ -237,11 +240,13 @@ defmodule CsvSniffer do
     |> Stream.map(fn line ->
       Enum.reduce(line, @seven_bit_ascii, &Map.update(&2, &1, 1, fn count -> count + 1 end))
     end)
-    |> Enum.reduce(acc, fn frequency_table, acc ->
-      Enum.reduce(frequency_table, acc, fn {character, frequency}, acc ->
-        Map.update(acc, character, %{frequency => 1}, fn meta_frequency ->
-          Map.update(meta_frequency, frequency, 1, &(&1 + 1))
-        end)
+    |> Enum.reduce(acc, &reduce_frequency_tables/2)
+  end
+
+  defp reduce_frequency_tables(frequency_table, acc) do
+    Enum.reduce(frequency_table, acc, fn {character, frequency}, acc ->
+      Map.update(acc, character, %{frequency => 1}, fn meta_frequency ->
+        Map.update(meta_frequency, frequency, 1, &(&1 + 1))
       end)
     end)
   end
@@ -262,7 +267,7 @@ defmodule CsvSniffer do
 
         Map.put(acc, <<character>>, adjusted_mode)
 
-      _, acc ->
+      _character_and_frequencies, acc ->
         acc
     end)
   end
@@ -280,7 +285,7 @@ defmodule CsvSniffer do
             acc
           end
 
-        _, acc ->
+        _delimiter_and_frequency, acc ->
           acc
       end)
 
@@ -327,7 +332,7 @@ defmodule CsvSniffer do
   defp format_response(%Dialect{delimiter: delimiter} = dialect) do
     case delimiter do
       nil -> {:error, "Could not determine delimiter"}
-      _ -> {:ok, dialect}
+      _delimiter -> {:ok, dialect}
     end
   end
 end

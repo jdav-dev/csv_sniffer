@@ -1,10 +1,12 @@
 defmodule CsvSniffer.MixProject do
   use Mix.Project
 
+  @version "0.1.0"
+
   def project do
     [
       app: :csv_sniffer,
-      version: "0.1.0",
+      version: @version,
       elixir: "~> 1.9",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
@@ -23,7 +25,9 @@ defmodule CsvSniffer.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:ex_doc, "~> 0.21.3", only: :dev, runtime: false}
+      {:ex_doc, "~> 0.21.3", only: :dev, runtime: false},
+      {:dialyxir, "~> 1.0.0-rc.7", only: :dev, runtime: false},
+      {:credo, "~> 1.2", only: :dev, runtime: false}
     ]
   end
 
