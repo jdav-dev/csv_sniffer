@@ -10,6 +10,41 @@ defmodule CsvSniffer do
 
   @doc """
   "Sniffs" the format of a CSV file (i.e. delimiter, quote character).
+
+  ## Examples
+
+  Accepts enumerables (such as file streams):
+
+      iex> \"""
+      ...> Harry's, Arlington Heights, IL, 2/1/03, Kimi Hayes
+      ...> Shark City, Glendale Heights, IL, 12/28/02, Prezence
+      ...> Tommy's Place, Blue Island, IL, 12/28/02, Blue Sunday/White Crow
+      ...> Stonecutters Seafood and Chop House, Lemont, IL, 12/19/02, Week Back
+      ...> \"""
+      ...> |> String.split("\\n")
+      ...> |> CsvSniffer.sniff()
+      {:ok, %CsvSniffer.Dialect{
+        delimiter: ",",
+        quote_character: "\\"",
+        double_quote: false,
+        skip_initial_space: true
+      }}
+
+  Also accepts strings, which will be split on newlines:
+
+      iex> \"""
+      ...> Harry's, Arlington Heights, IL, 2/1/03, Kimi Hayes
+      ...> Shark City, Glendale Heights, IL, 12/28/02, Prezence
+      ...> Tommy's Place, Blue Island, IL, 12/28/02, Blue Sunday/White Crow
+      ...> Stonecutters Seafood and Chop House, Lemont, IL, 12/19/02, Week Back
+      ...> \"""
+      ...> |> CsvSniffer.sniff()
+      {:ok, %CsvSniffer.Dialect{
+        delimiter: ",",
+        quote_character: "\\"",
+        double_quote: false,
+        skip_initial_space: true
+      }}
   """
   @spec sniff(data :: Enumerable.t() | binary(), delimiters: [String.t()]) ::
           {:ok, Dialect.t()} | {:error, reason :: any()}
@@ -267,12 +302,16 @@ defmodule CsvSniffer do
       max_by_value(possible_delimiters)
   end
 
+  defp pick_delimiter(_possible_delimiters) do
+    nil
+  end
+
   defp pick_preferred_delimiter(possible_delimiters) do
     delimiters = Map.keys(possible_delimiters)
     Enum.find(@preferred, &(&1 in delimiters))
   end
 
-  defp skip_initial_space?(delimiter, enum) do
+  defp skip_initial_space?(delimiter, enum) when is_binary(delimiter) do
     line =
       enum
       |> Enum.take(1)
@@ -281,6 +320,14 @@ defmodule CsvSniffer do
     length(String.split(line, delimiter)) == length(String.split(line, delimiter <> " "))
   end
 
-  defp format_response(%Dialect{delimiter: nil}), do: {:error, "Could not determine delimiter"}
-  defp format_response(%Dialect{} = dialect), do: {:ok, dialect}
+  defp skip_initial_space?(nil, _enum) do
+    false
+  end
+
+  defp format_response(%Dialect{delimiter: delimiter} = dialect) do
+    case delimiter do
+      nil -> {:error, "Could not determine delimiter"}
+      _ -> {:ok, dialect}
+    end
+  end
 end
