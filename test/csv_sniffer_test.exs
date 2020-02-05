@@ -172,7 +172,13 @@ defmodule CsvSnifferTest do
     end
 
     test "on sample9" do
-      assert {:ok, %Dialect{delimiter: "+", double_quote: true, quote_character: "'"}} ==
+      assert {:ok,
+              %Dialect{
+                delimiter: "+",
+                double_quote: true,
+                quote_character: "'",
+                skip_initial_space: true
+              }} ==
                CsvSniffer.sniff(@sample9)
     end
 
