@@ -12,7 +12,7 @@ The package can be installed by adding `csv_sniffer` to your list of dependencie
 ```elixir
 def deps do
   [
-    {:csv_sniffer, "~> 0.1.0"}
+    {:csv_sniffer, "~> 0.2.0"}
   ]
 end
 ```
