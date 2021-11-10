@@ -1,9 +1,7 @@
-# CsvSniffer
-
-![Elixir CI](https://github.com/jdav-dev/csv_sniffer/workflows/Elixir%20CI/badge.svg)
+# CsvSniffer - Fixed set of delimiters
 
 An Elixir port of Python's
-[CSV Sniffer](https://github.com/python/cpython/blob/9bfb4a7061a3bc4fc5632bccfdf9ed61f62679f7/Lib/csv.py#L165-L448).
+[CSV Sniffer](https://github.com/python/cpython/blob/9bfb4a7061a3bc4fc5632bccfdf9ed61f62679f7/Lib/csv.py#L165-L448), with a fixed set of delimiters: only considers `[";", ",", "|", "\t"]`
 
 ## Installation
 

@@ -7,41 +7,38 @@ defmodule CsvSniffer do
 
   alias CsvSniffer.Dialect
 
-  @preferred [",", "\t", ";", " ", ":"]
+  @delimiters [",", "\t", ";", "|"]
+  @delimiters_regex "[#{Enum.join(@delimiters, "")}]"
 
   @doc """
   "Sniffs" the format of a CSV sample (i.e. delimiter, quote character).
 
-  ## Options
-
-    * `:delimiters` - Limit the sniffer to a list of possible delimiters.
+  Possible delimiters tried: `[",", ";", "|", "\t"]`
 
   ## Examples
 
       iex> \"""
-      ...> Harry's, Arlington Heights, IL, 2/1/03, Kimi Hayes
-      ...> Shark City, Glendale Heights, IL, 12/28/02, Prezence
-      ...> Tommy's Place, Blue Island, IL, 12/28/02, Blue Sunday/White Crow
-      ...> Stonecutters Seafood and Chop House, Lemont, IL, 12/19/02, Week Back
+      ...> Harry's,Arlington Heights,IL,2/1/03,Kimi Hayes
+      ...> Shark City,Glendale Heights,IL,12/28/02,Prezence
+      ...> Tommy's Place,Blue Island,IL,12/28/02,Blue Sunday/White Crow
+      ...> Stonecutters Seafood and Chop House,Lemont,IL,12/19/02,Week Back
       ...> \"""
       ...> |> CsvSniffer.sniff()
       {:ok, %CsvSniffer.Dialect{
         delimiter: ",",
-        quote_character: "\\"",
-        double_quote: false,
-        skip_initial_space: true
+        quote_character: nil,
+        double_quote: false
       }}
 
   """
   @doc since: "0.2.0"
-  @spec sniff(sample :: String.t(), opts :: [delimiters: [String.t()]]) ::
+  @spec sniff(sample :: String.t()) ::
           {:ok, Dialect.t()} | {:error, reason :: any()}
-  def sniff(sample, opts \\ []) when is_binary(sample) do
-    delimiters = Keyword.get(opts, :delimiters, nil)
+  def sniff(sample) when is_binary(sample) do
 
     sample
-    |> guess_quote_and_delimiter(delimiters)
-    |> guess_delimiter(sample, delimiters)
+    |> guess_quote_and_delimiter()
+    |> guess_delimiter(sample)
     |> format_response()
   end
 
@@ -52,26 +49,27 @@ defmodule CsvSniffer do
   #                  ,'some text',
   # The quote with the most wins, same with the delimiter.  If there is no quotechar the delimiter
   # can't be determined this way.
-  defp guess_quote_and_delimiter(sample, delimiters) do
+  defp guess_quote_and_delimiter(sample) do
     sample
     |> run_quote_regex()
-    |> count_matches(delimiters)
+    |> count_matches()
     |> pick_count_winners()
     |> check_double_quote(sample)
   end
 
   @quote_regex [
     # ,".*?",
-    ~r'(?P<delim>[^\w\n"\'])(?P<space> ?)(?P<quote>["\']).*?(?P=quote)(?P=delim)'sm,
+    ~r'(?P<delim>#{@delimiters_regex})(?P<quote>["\']).*?(?P=quote)(?P=delim)'sm,
     #  ".*?",
-    ~r'(?:^|\n)(?P<quote>["\']).*?(?P=quote)(?P<delim>[^\w\n"\'])(?P<space> ?)'sm,
+    ~r'(?:^|\n)(?P<quote>["\']).*?(?P=quote)(?P<delim>#{@delimiters_regex})'sm,
     # ,".*?"
-    ~r'(?P<delim>[^\w\n"\'])(?P<space> ?)(?P<quote>["\']).*?(?P=quote)(?:$|\n)'sm,
-    #  ".*?" (no delim, no space)
+    ~r'(?P<delim>#{@delimiters_regex})(?P<quote>["\']).*?(?P=quote)(?:$|\n)'sm,
+    #  ".*?" (no delim)
     ~r'(?:^|\n)(?P<quote>["\']).*?(?P=quote)(?:$|\n)'sm
   ]
 
   defp run_quote_regex(sample) do
+
     Enum.find_value(@quote_regex, {[], []}, fn regex ->
       case Regex.scan(regex, sample, capture: :all_names) do
         [] -> false
@@ -80,47 +78,34 @@ defmodule CsvSniffer do
     end)
   end
 
-  defp count_matches({names, matches}, delimiters) do
-    initial_acc = %{quote: %{}, delim: %{}, space: 0}
-
+  defp count_matches({names, matches}) do
+    initial_acc = %{quote: %{}, delim: %{}}
     Enum.reduce(matches, initial_acc, fn match, acc ->
       names
       |> Enum.zip(match)
-      |> reduce_zipped_matches(acc, delimiters)
+      |> reduce_zipped_matches(acc)
     end)
   end
 
-  defp reduce_zipped_matches(zipped_matches, acc, delimiters) do
+  defp reduce_zipped_matches(zipped_matches, acc) do
     Enum.reduce(zipped_matches, acc, fn
       {"quote", value}, acc ->
         update_in(acc, [:quote, value], &((&1 || 0) + 1))
 
       {"delim", value}, acc ->
-        if !delimiters || value in delimiters do
-          update_in(acc, [:delim, value], &((&1 || 0) + 1))
-        else
-          acc
-        end
+        update_in(acc, [:delim, value], &((&1 || 0) + 1))
 
-      {"space", value}, acc ->
-        if is_nil(value) or value == "" do
-          acc
-        else
-          Map.update(acc, :space, 1, &((&1 || 0) + 1))
-        end
     end)
   end
 
-  defp pick_count_winners(%{quote: quotes, delim: delimiters, space: spaces}) do
-    quote_character = max_by_value(quotes) || "\""
+  defp pick_count_winners(%{quote: quotes, delim: delimiters}) do
+    quote_character = max_by_value(quotes) || nil
     delimiter = max_by_value(delimiters)
-    skip_initial_space = delimiters[delimiter] == spaces
     non_newline_delimiter = if delimiter == "\n", do: "", else: delimiter
 
     %Dialect{
       delimiter: non_newline_delimiter,
-      quote_character: quote_character,
-      skip_initial_space: skip_initial_space
+      quote_character: quote_character
     }
   end
 
@@ -170,7 +155,7 @@ defmodule CsvSniffer do
   #   5) the character that best meets its goal is the delimiter
   # For performance reasons, the data is evaluated in chunks, so it can try and evaluate the
   # smallest portion of the data possible, evaluating additional chunks as necessary.
-  defp guess_delimiter(%Dialect{delimiter: nil} = dialect, sample, delimiters) do
+  defp guess_delimiter(%Dialect{delimiter: nil} = dialect, sample) do
     split_sample =
       sample
       |> String.split("\n")
@@ -189,7 +174,7 @@ defmodule CsvSniffer do
         possible_delimiters =
           updated_frequency_tables
           |> get_mode_of_the_frequencies()
-          |> build_a_list_of_possible_delimiters(new_total, delimiters)
+          |> build_a_list_of_possible_delimiters(new_total)
 
         cont_or_halt = if possible_delimiters == %{}, do: :cont, else: :halt
 
@@ -203,14 +188,10 @@ defmodule CsvSniffer do
       |> Map.get(:possible_delimiters)
       |> pick_delimiter()
 
-    %Dialect{
-      dialect
-      | delimiter: delimiter,
-        skip_initial_space: skip_initial_space?(delimiter, split_sample)
-    }
+    %Dialect{dialect | delimiter: delimiter}
   end
 
-  defp guess_delimiter(dialect, _sample, _delimiters) do
+  defp guess_delimiter(dialect, _sample) do
     dialect
   end
 
@@ -256,23 +237,19 @@ defmodule CsvSniffer do
 
   @min_consistency_threshold 0.9
 
-  defp build_a_list_of_possible_delimiters(modes, total, delimiters, consistency \\ 1.0) do
+  defp build_a_list_of_possible_delimiters(modes, total, consistency \\ 1.0) do
     possible_delimiters =
       Enum.reduce(modes, %{}, fn
         {delimiter, {frequency, meta_frequency} = value}, acc
         when frequency > 0 and meta_frequency > 0 and meta_frequency / total >= consistency ->
-          if is_nil(delimiters) or delimiter in delimiters do
-            Map.put(acc, delimiter, value)
-          else
-            acc
-          end
+          Map.put(acc, delimiter, value)
 
         _delimiter_and_frequency, acc ->
           acc
       end)
 
     if possible_delimiters == %{} and consistency > @min_consistency_threshold do
-      build_a_list_of_possible_delimiters(modes, total, delimiters, consistency - 0.01)
+      build_a_list_of_possible_delimiters(modes, total, consistency - 0.01)
     else
       possible_delimiters
     end
@@ -284,32 +261,9 @@ defmodule CsvSniffer do
     |> List.first()
   end
 
-  defp pick_delimiter(possible_delimiters) when map_size(possible_delimiters) > 1 do
-    pick_preferred_delimiter(possible_delimiters) ||
-      max_by_value(possible_delimiters)
-  end
+  defp pick_delimiter(possible_delimiters) when map_size(possible_delimiters) > 1, do: max_by_value(possible_delimiters)
 
-  defp pick_delimiter(_possible_delimiters) do
-    nil
-  end
-
-  defp pick_preferred_delimiter(possible_delimiters) do
-    delimiters = Map.keys(possible_delimiters)
-    Enum.find(@preferred, &(&1 in delimiters))
-  end
-
-  defp skip_initial_space?(delimiter, split_sample) when is_binary(delimiter) do
-    line =
-      split_sample
-      |> Enum.take(1)
-      |> List.first()
-
-    length(String.split(line, delimiter)) == length(String.split(line, delimiter <> " "))
-  end
-
-  defp skip_initial_space?(nil, _sample) do
-    false
-  end
+  defp pick_delimiter(_possible_delimiters), do: nil
 
   defp format_response(%Dialect{delimiter: delimiter} = dialect) do
     case delimiter do

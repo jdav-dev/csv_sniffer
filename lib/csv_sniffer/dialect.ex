@@ -9,12 +9,10 @@ defmodule CsvSniffer.Dialect do
   @type t :: %__MODULE__{
           delimiter: String.t(),
           quote_character: String.t(),
-          double_quote: boolean(),
-          skip_initial_space: boolean()
+          double_quote: boolean()
         }
 
   defstruct delimiter: nil,
             quote_character: "\"",
-            double_quote: false,
-            skip_initial_space: false
+            double_quote: false
 end
