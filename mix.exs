@@ -1,7 +1,8 @@
 defmodule CsvSniffer.MixProject do
   use Mix.Project
 
-  @version "0.2.1"
+  @source_url "https://github.com/doofinder/csv_sniffer"
+  @version "0.2.2"
 
   def project do
     [
@@ -9,7 +10,7 @@ defmodule CsvSniffer.MixProject do
       version: @version,
       elixir: "~> 1.9",
       name: "CsvSniffer",
-      description: "An Elixir port of Python's CSV Sniffer.",
+      description: "An Elixir port of Python's CSV Sniffer. Adapted to doofinder",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       docs: docs(),
@@ -37,14 +38,15 @@ defmodule CsvSniffer.MixProject do
     [
       main: "CsvSniffer",
       source_ref: "v#{@version}",
-      source_url: "https://github.com/jdav-dev/csv_sniffer"
+      source_url: @source_url
     ]
   end
 
   defp package do
     %{
+      organization: "doofinder",
       licenses: ["Apache-2.0"],
-      links: %{"GitHub" => "https://github.com/jdav-dev/csv_sniffer"}
+      links: %{"GitHub" => @source_url}
     }
   end
 end
