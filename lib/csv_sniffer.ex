@@ -55,6 +55,8 @@ defmodule CsvSniffer do
     |> count_matches()
     |> pick_count_winners()
     |> check_double_quote(sample)
+    |> check_quoted_delimiter(sample)
+    |> check_quoted_carriage_return(sample)
   end
 
   @quote_regex [
@@ -128,19 +130,80 @@ defmodule CsvSniffer do
     # If we see an extra quote between delimiters, we've got a double quoted format.
     double_quote_regex =
       Regex.compile!(
-        "((#{escaped_delimiter})|^)\W*#{escaped_quote_character}[^#{escaped_delimiter}\n]*" <>
-          "#{escaped_quote_character}[^#{escaped_delimiter}\n]*#{escaped_quote_character}\W*" <>
-          "((#{escaped_delimiter})|$)",
+        "((#{escaped_delimiter})|^)#{escaped_quote_character}" <>
+          "([^#{escaped_quote_character}]*#{escaped_quote_character}{2})+[^#{escaped_quote_character}]*" <>
+          "#{escaped_quote_character}((#{escaped_delimiter})|$)",
         "m"
       )
 
-    double_quote = Regex.match?(double_quote_regex, sample)
-
-    %Dialect{dialect | double_quote: double_quote}
+    if Regex.match?(double_quote_regex, sample) do
+      %Dialect{dialect | quote_needed: true}
+    else
+      dialect
+    end
   end
 
-  defp check_double_quote(dialect, _sample) do
+  defp check_double_quote(dialect, _sample), do: dialect
+
+  defp check_quoted_delimiter(%{quote_needed: true} = dialect, _sample), do: dialect
+  defp check_quoted_delimiter(%{quote_character: qc, delimiter: dl} = dialect, _sample)
+    when is_nil(qc) or is_nil(dl) do
     dialect
+  end
+
+  defp check_quoted_delimiter(
+    %Dialect{delimiter: delimiter, quote_character: quote_character} = dialect,
+    sample
+  ) do
+    escaped_delimiter = Regex.escape(delimiter)
+    escaped_quote_character = Regex.escape(quote_character)
+
+    # If we see delimiter char within quotes, quotes are needed!
+    # If we're here, there are no double quotes, no need to account for them in the regex
+    quoted_delimiter_regex =
+      Regex.compile!(
+        "((#{escaped_delimiter})|^)#{escaped_quote_character}" <>
+          "([^#{escaped_delimiter}#{escaped_quote_character}]*#{escaped_delimiter})+[^#{escaped_delimiter}#{escaped_quote_character}]*" <>
+          "#{escaped_quote_character}((#{escaped_delimiter})|$)",
+        "m"
+      )
+
+    if Regex.match?(quoted_delimiter_regex, sample) do
+      %Dialect{dialect | quote_needed: true}
+    else
+      dialect
+    end
+  end
+
+  defp check_quoted_carriage_return(%{quote_needed: true} = dialect, _sample), do: dialect
+
+  defp check_quoted_carriage_return(%{quote_character: qc, delimiter: dl} = dialect, _sample)
+    when is_nil(qc) or is_nil(dl) do
+    dialect
+  end
+
+  defp check_quoted_carriage_return(
+    %Dialect{delimiter: delimiter, quote_character: quote_character} = dialect,
+    sample
+  ) do
+    escaped_delimiter = Regex.escape(delimiter)
+    escaped_quote_character = Regex.escape(quote_character)
+
+    # If we see \n within quotes, quotes are needed!
+    # If we're here, there are no double quotes, no need to account for them in the regex
+    quoted_carriage_return_regex =
+      Regex.compile!(
+        "((#{escaped_delimiter})|^)#{escaped_quote_character}" <>
+          "([^\n#{escaped_quote_character}]*\n)+[^\n#{escaped_quote_character}]*" <>
+          "#{escaped_quote_character}((#{escaped_delimiter})|$)",
+        "m"
+      )
+
+    if Regex.match?(quoted_carriage_return_regex, sample) do
+      %Dialect{dialect | quote_needed: true}
+    else
+      dialect
+    end
   end
 
   # The delimiter /should/ occur the same number of times on each row.  However, due to malformed
@@ -265,10 +328,12 @@ defmodule CsvSniffer do
 
   defp pick_delimiter(_possible_delimiters), do: nil
 
-  defp format_response(%Dialect{delimiter: delimiter} = dialect) do
-    case delimiter do
-      nil -> {:error, "Could not determine delimiter"}
-      _delimiter -> {:ok, dialect}
-    end
-  end
+  defp format_response(%{delimiter: nil}), do: {:error, "Could not determine delimiter"}
+
+  defp format_response(%{delimiter: delimiter, quote_needed: false}),
+    do: {:ok, %{delimiter: delimiter, quote_character: nil}}
+
+  defp format_response(%{delimiter: delimiter, quote_character: quote_character}),
+    do: {:ok, %{delimiter: delimiter, quote_character: quote_character}}
+
 end
