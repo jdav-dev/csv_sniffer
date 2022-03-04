@@ -331,9 +331,9 @@ defmodule CsvSniffer do
   defp format_response(%{delimiter: nil}), do: {:error, "Could not determine delimiter"}
 
   defp format_response(%{delimiter: delimiter, quote_needed: false}),
-    do: {:ok, %{delimiter: delimiter, quote_character: nil}}
+    do: {:ok, %Dialect{delimiter: delimiter, quote_character: nil}}
 
   defp format_response(%{delimiter: delimiter, quote_character: quote_character}),
-    do: {:ok, %{delimiter: delimiter, quote_character: quote_character}}
+    do: {:ok, %Dialect{delimiter: delimiter, quote_character: quote_character, quote_needed: true}}
 
 end
