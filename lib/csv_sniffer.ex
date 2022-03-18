@@ -64,14 +64,16 @@ defmodule CsvSniffer do
     ~r'(?P<delim>#{@delimiters_regex})(?P<quote>["\']).*?(?P=quote)(?P=delim)'sm,
     #  ".*?",
     ~r'(?:^|\n)(?P<quote>["\']).*?(?P=quote)(?P<delim>#{@delimiters_regex})'sm,
+    ~r'(?:^|\r)(?P<quote>["\']).*?(?P=quote)(?P<delim>#{@delimiters_regex})'sm,
     # ,".*?"
     ~r'(?P<delim>#{@delimiters_regex})(?P<quote>["\']).*?(?P=quote)(?:$|\n)'sm,
+    ~r'(?P<delim>#{@delimiters_regex})(?P<quote>["\']).*?(?P=quote)(?:$|\r)'sm,
     #  ".*?" (no delim)
-    ~r'(?:^|\n)(?P<quote>["\']).*?(?P=quote)(?:$|\n)'sm
+    ~r'(?:^|\n)(?P<quote>["\']).*?(?P=quote)(?:$|\n)'sm,
+    ~r'(?:^|\r)(?P<quote>["\']).*?(?P=quote)(?:$|\r)'sm
   ]
 
   defp run_quote_regex(sample) do
-
     Enum.find_value(@quote_regex, {[], []}, fn regex ->
       case Regex.scan(regex, sample, capture: :all_names) do
         [] -> false
@@ -219,9 +221,11 @@ defmodule CsvSniffer do
   # For performance reasons, the data is evaluated in chunks, so it can try and evaluate the
   # smallest portion of the data possible, evaluating additional chunks as necessary.
   defp guess_delimiter(%Dialect{delimiter: nil} = dialect, sample) do
+    # inside this function, we can be sure there's no escape character ...
+    newline = find_newline_character(sample)
     split_sample =
       sample
-      |> String.split("\n")
+      |> String.split(newline)
       |> Stream.reject(&(String.trim(&1) == ""))
 
     initial_acc = %{frequency_tables: %{}, total: 0}
@@ -335,5 +339,11 @@ defmodule CsvSniffer do
 
   defp format_response(%{delimiter: delimiter, quote_character: quote_character}),
     do: {:ok, %Dialect{delimiter: delimiter, quote_character: quote_character, quote_needed: true}}
+
+  defp find_newline_character(""), do: "\n"
+  defp find_newline_character("\r\n" <> _), do: "\r\n"
+  defp find_newline_character("\n" <> _), do: "\n"
+  defp find_newline_character("\r" <> _), do: "\r"
+  defp find_newline_character(<<_::utf8, rest::binary>>), do: find_newline_character(rest)
 
 end
