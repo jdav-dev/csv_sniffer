@@ -35,7 +35,6 @@ defmodule CsvSniffer do
   @spec sniff(sample :: String.t()) ::
           {:ok, Dialect.t()} | {:error, reason :: any()}
   def sniff(sample) when is_binary(sample) do
-
     sample
     |> guess_quote_and_delimiter()
     |> guess_delimiter(sample)
@@ -84,6 +83,7 @@ defmodule CsvSniffer do
 
   defp count_matches({names, matches}) do
     initial_acc = %{quote: %{}, delim: %{}}
+
     Enum.reduce(matches, initial_acc, fn match, acc ->
       names
       |> Enum.zip(match)
@@ -98,7 +98,6 @@ defmodule CsvSniffer do
 
       {"delim", value}, acc ->
         update_in(acc, [:delim, value], &((&1 || 0) + 1))
-
     end)
   end
 
@@ -148,15 +147,16 @@ defmodule CsvSniffer do
   defp check_double_quote(dialect, _sample), do: dialect
 
   defp check_quoted_delimiter(%{quote_needed: true} = dialect, _sample), do: dialect
+
   defp check_quoted_delimiter(%{quote_character: qc, delimiter: dl} = dialect, _sample)
-    when is_nil(qc) or is_nil(dl) do
+       when is_nil(qc) or is_nil(dl) do
     dialect
   end
 
   defp check_quoted_delimiter(
-    %Dialect{delimiter: delimiter, quote_character: quote_character} = dialect,
-    sample
-  ) do
+         %Dialect{delimiter: delimiter, quote_character: quote_character} = dialect,
+         sample
+       ) do
     escaped_delimiter = Regex.escape(delimiter)
     escaped_quote_character = Regex.escape(quote_character)
 
@@ -180,14 +180,14 @@ defmodule CsvSniffer do
   defp check_quoted_carriage_return(%{quote_needed: true} = dialect, _sample), do: dialect
 
   defp check_quoted_carriage_return(%{quote_character: qc, delimiter: dl} = dialect, _sample)
-    when is_nil(qc) or is_nil(dl) do
+       when is_nil(qc) or is_nil(dl) do
     dialect
   end
 
   defp check_quoted_carriage_return(
-    %Dialect{delimiter: delimiter, quote_character: quote_character} = dialect,
-    sample
-  ) do
+         %Dialect{delimiter: delimiter, quote_character: quote_character} = dialect,
+         sample
+       ) do
     escaped_delimiter = Regex.escape(delimiter)
     escaped_quote_character = Regex.escape(quote_character)
 
@@ -223,6 +223,7 @@ defmodule CsvSniffer do
   defp guess_delimiter(%Dialect{delimiter: nil} = dialect, sample) do
     # inside this function, we can be sure there's no escape character ...
     newline = find_newline_character(sample)
+
     split_sample =
       sample
       |> String.split(newline)
@@ -328,7 +329,8 @@ defmodule CsvSniffer do
     |> List.first()
   end
 
-  defp pick_delimiter(possible_delimiters) when map_size(possible_delimiters) > 1, do: max_by_value(possible_delimiters)
+  defp pick_delimiter(possible_delimiters) when map_size(possible_delimiters) > 1,
+    do: max_by_value(possible_delimiters)
 
   defp pick_delimiter(_possible_delimiters), do: nil
 
@@ -338,12 +340,12 @@ defmodule CsvSniffer do
     do: {:ok, %Dialect{delimiter: delimiter, quote_character: nil}}
 
   defp format_response(%{delimiter: delimiter, quote_character: quote_character}),
-    do: {:ok, %Dialect{delimiter: delimiter, quote_character: quote_character, quote_needed: true}}
+    do:
+      {:ok, %Dialect{delimiter: delimiter, quote_character: quote_character, quote_needed: true}}
 
   defp find_newline_character(""), do: "\n"
   defp find_newline_character("\r\n" <> _), do: "\r\n"
   defp find_newline_character("\n" <> _), do: "\n"
   defp find_newline_character("\r" <> _), do: "\r"
   defp find_newline_character(<<_::utf8, rest::binary>>), do: find_newline_character(rest)
-
 end
