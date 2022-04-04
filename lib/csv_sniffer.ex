@@ -56,6 +56,7 @@ defmodule CsvSniffer do
     |> check_double_quote(sample)
     |> check_quoted_delimiter(sample)
     |> check_quoted_carriage_return(sample)
+    |> check_quoted_values(sample)
   end
 
   @quote_regex [
@@ -206,6 +207,33 @@ defmodule CsvSniffer do
     else
       dialect
     end
+  end
+
+  # It can happen that theoretically there are no double quotes and no \n inside
+  # quotes, but some field values are quoted-enclosed:
+  # "some value","some other value","yep"
+  # in that case, quote IS needed
+  defp check_quoted_values(%{quote_needed: true} = dialect, _), do: dialect
+  # we can count that NO quoted delimiter, and NO quoted newline are here
+  defp check_quoted_values(%{quote_character: qc, delimiter: dl} = dialect, _)
+       when is_nil(qc) or is_nil(dl),
+       do: dialect
+
+  defp check_quoted_values(%{delimiter: dl, quote_character: qc} = dialect, sample) do
+    escaped_delimiter = Regex.escape(dl)
+    escaped_quote_character = Regex.escape(qc)
+
+    quoted_values_regex =
+      Regex.compile!(
+        "(#{escaped_delimiter}|^)#{escaped_quote_character}" <>
+          "[^#{escaped_quote_character}]*#{escaped_quote_character}" <>
+          "(#{escaped_delimiter}|$)",
+        "m"
+      )
+
+    if Regex.match?(quoted_values_regex, sample),
+      do: %Dialect{dialect | quote_needed: true},
+      else: dialect
   end
 
   # The delimiter /should/ occur the same number of times on each row.  However, due to malformed
