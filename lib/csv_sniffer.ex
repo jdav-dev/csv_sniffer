@@ -64,22 +64,62 @@ defmodule CsvSniffer do
     ~r'(?P<delim>#{@delimiters_regex})(?P<quote>["\']).*?(?P=quote)(?P=delim)'sm,
     #  ".*?",
     ~r'(?:^|\n)(?P<quote>["\']).*?(?P=quote)(?P<delim>#{@delimiters_regex})'sm,
-    ~r'(?:^|\r)(?P<quote>["\']).*?(?P=quote)(?P<delim>#{@delimiters_regex})'sm,
     # ,".*?"
     ~r'(?P<delim>#{@delimiters_regex})(?P<quote>["\']).*?(?P=quote)(?:$|\n)'sm,
-    ~r'(?P<delim>#{@delimiters_regex})(?P<quote>["\']).*?(?P=quote)(?:$|\r)'sm,
     #  ".*?" (no delim)
-    ~r'(?:^|\n)(?P<quote>["\']).*?(?P=quote)(?:$|\n)'sm,
-    ~r'(?:^|\r)(?P<quote>["\']).*?(?P=quote)(?:$|\r)'sm
+    ~r'(?:^|\n)(?P<quote>["\']).*?(?P=quote)(?:$|\n)'sm
   ]
 
   defp run_quote_regex(sample) do
     Enum.find_value(@quote_regex, {[], []}, fn regex ->
-      case Regex.scan(regex, sample, capture: :all_names) do
-        [] -> false
-        matches -> {Regex.names(regex), matches}
+      names = Regex.names(regex)
+
+      with matches <- Regex.scan(regex, sample, capture: :all_names),
+           [_ | _] = matches <- Enum.filter(matches, &header_compatible?({names, &1}, sample)) do
+        {names, matches}
+      else
+        _ -> false
       end
     end)
+  end
+
+  defp header_compatible?({["quote"], _}, _), do: true
+
+  defp header_compatible?({["delim", "quote"], [delim_char, quote_char]}, sample) do
+    quote_regex = ~r/^[^\n#{quote_char}]*#{quote_char}/
+
+    case Regex.match?(quote_regex, sample) do
+      false ->
+        sample
+        |> String.split("\n", parts: 2)
+        |> List.first()
+        |> get_best_delim_candidate()
+        |> Kernel.==(delim_char)
+
+      true ->
+        true
+    end
+  end
+
+  defp header_compatible?({["quote", "delim"], [q, d]}, sample),
+    do: header_compatible?({["delim", "quote"], [d, q]}, sample)
+
+  defp header_compatible?(_, _), do: false
+
+  defp get_best_delim_candidate(line) do
+    {candidate, _} =
+      @delimiters
+      |> Enum.map(fn delim ->
+      freq =
+        line
+        |> String.split(delim)
+        |> Kernel.length()
+
+      {delim, freq}
+    end)
+    |> Enum.max(&(elem(&1, 1) > &2))
+
+      candidate
   end
 
   defp count_matches({names, matches}) do
