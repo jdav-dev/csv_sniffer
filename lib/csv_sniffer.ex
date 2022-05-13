@@ -110,16 +110,16 @@ defmodule CsvSniffer do
     {candidate, _} =
       @delimiters
       |> Enum.map(fn delim ->
-      freq =
-        line
-        |> String.split(delim)
-        |> Kernel.length()
+        freq =
+          line
+          |> String.split(delim)
+          |> Kernel.length()
 
-      {delim, freq}
-    end)
-    |> Enum.max(&(elem(&1, 1) > &2))
+        {delim, freq}
+      end)
+      |> Enum.max(&(elem(&1, 1) > &2))
 
-      candidate
+    candidate
   end
 
   defp count_matches({names, matches}) do
