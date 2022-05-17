@@ -86,6 +86,7 @@ defmodule CsvSniffer do
   defp header_compatible?({["quote"], _}, _), do: true
 
   defp header_compatible?({["delim", "quote"], [delim_char, quote_char]}, sample) do
+
     quote_regex = ~r/^[^\n#{quote_char}]*#{quote_char}/
 
     case Regex.match?(quote_regex, sample) do
@@ -116,8 +117,8 @@ defmodule CsvSniffer do
           |> Kernel.length()
 
         {delim, freq}
-      end)
-      |> Enum.max(&(elem(&1, 1) > &2))
+    end)
+      |> Enum.max(&(elem(&1, 1) > elem(&2, 1)))
 
     candidate
   end
