@@ -86,7 +86,6 @@ defmodule CsvSniffer do
   defp header_compatible?({["quote"], _}, _), do: true
 
   defp header_compatible?({["delim", "quote"], [delim_char, quote_char]}, sample) do
-
     quote_regex = ~r/^[^\n#{quote_char}]*#{quote_char}/
 
     case Regex.match?(quote_regex, sample) do
@@ -117,7 +116,7 @@ defmodule CsvSniffer do
           |> Kernel.length()
 
         {delim, freq}
-    end)
+      end)
       |> Enum.max(&(elem(&1, 1) > elem(&2, 1)))
 
     candidate
@@ -312,6 +311,8 @@ defmodule CsvSniffer do
           updated_frequency_tables
           |> get_mode_of_the_frequencies()
           |> build_a_list_of_possible_delimiters(new_total)
+          |> Enum.filter(fn {k, _v} -> Enum.member?(@delimiters, k) end)
+          |> Enum.into(%{})
 
         cont_or_halt = if possible_delimiters == %{}, do: :cont, else: :halt
 
