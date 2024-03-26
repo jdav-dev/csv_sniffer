@@ -54,7 +54,6 @@ defmodule CsvSniffer do
   For performance reasons, the data is evaluated in chunks, so it can try and evaluate the
   smallest portion of the data possible, evaluating additional chunks as necessary.
   """
-  @spec guess_delimiter(CsvSniffer.Dialect.t(), binary) :: map
   def guess_delimiter(%Dialect{delimiter: nil} = dialect, sample) do
     # inside this function, we can be sure there's no escape character ...
     newline = find_newline_character(sample)
@@ -97,7 +96,6 @@ defmodule CsvSniffer do
   end
 
   def guess_delimiter(dialect, _sample) do
-    IO.inspect("entra por el que")
     dialect
   end
 
