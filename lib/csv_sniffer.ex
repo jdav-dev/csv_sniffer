@@ -36,19 +36,79 @@ defmodule CsvSniffer do
           {:ok, Dialect.t()} | {:error, reason :: any()}
   def sniff(sample) when is_binary(sample) do
     sample
-    |> guess_quote_and_delimiter()
+    |> guess_quote()
     |> guess_delimiter(sample)
     |> format_response()
   end
 
-  # Looks for text enclosed between two identical quotes (the probable quotechar) which are
-  # preceded and followed by the same character (the probable delimiter).
-  #
-  # For example:
-  #                  ,'some text',
-  # The quote with the most wins, same with the delimiter.  If there is no quotechar the delimiter
-  # can't be determined this way.
-  defp guess_quote_and_delimiter(sample) do
+  @doc """
+  The delimiter /should/ occur the same number of times on each row.  However, due to malformed
+  data, it may not.  We don't want an all or nothing approach, so we allow for small variations
+  in this number.
+    1) build a table of the frequency of each character on every line.
+    2) build a table of frequencies of this frequency (meta-frequency?), e.g. 'x occurred 5
+       times in 10 rows, 6 times in 1000 rows, 7 times in 2 rows'
+    3) use the mode of the meta-frequency to determine the /expected/ frequency for that character
+    4) find out how often the character actually meets that goal
+    5) the character that best meets its goal is the delimiter
+  For performance reasons, the data is evaluated in chunks, so it can try and evaluate the
+  smallest portion of the data possible, evaluating additional chunks as necessary.
+  """
+  def guess_delimiter(%Dialect{delimiter: nil} = dialect, sample) do
+    # inside this function, we can be sure there's no escape character ...
+    newline = find_newline_character(sample)
+
+    split_sample =
+      sample
+      |> String.split(newline)
+      |> Stream.reject(&(String.trim(&1) == ""))
+
+    initial_acc = %{frequency_tables: %{}, total: 0}
+
+    delimiter =
+      split_sample
+      |> Stream.chunk_every(10)
+      |> Enum.reduce_while(initial_acc, fn chunk,
+                                           %{frequency_tables: frequency_tables, total: total} ->
+        new_total = total + length(chunk)
+        updated_frequency_tables = build_frequency_tables(chunk, frequency_tables)
+
+        possible_delimiters =
+          updated_frequency_tables
+          |> get_mode_of_the_frequencies()
+          |> build_a_list_of_possible_delimiters(new_total)
+          |> Enum.filter(fn {k, _v} -> Enum.member?(@delimiters, k) end)
+          |> Enum.into(%{})
+
+        cont_or_halt = if possible_delimiters == %{}, do: :cont, else: :halt
+
+        {cont_or_halt,
+         %{
+           frequency_tables: updated_frequency_tables,
+           possible_delimiters: possible_delimiters,
+           total: new_total
+         }}
+      end)
+      |> Map.get(:possible_delimiters)
+      |> pick_delimiter()
+
+    %Dialect{dialect | delimiter: delimiter}
+  end
+
+  def guess_delimiter(dialect, _sample) do
+    dialect
+  end
+
+  @doc """
+  Looks for text enclosed between two identical quotes (the probable quotechar) which are
+  preceded and followed by the same character (the probable delimiter).
+  For example:
+                   ,'some text',
+  The quote with the most wins, same with the delimiter.  If there is no quotechar the delimiter
+  can't be determined this way.
+  """
+  @spec guess_quote(binary) :: CsvSniffer.Dialect.t()
+  def guess_quote(sample) do
     sample
     |> run_quote_regex()
     |> count_matches()
@@ -274,63 +334,6 @@ defmodule CsvSniffer do
     if Regex.match?(quoted_values_regex, sample),
       do: %Dialect{dialect | quote_needed: true},
       else: dialect
-  end
-
-  # The delimiter /should/ occur the same number of times on each row.  However, due to malformed
-  # data, it may not.  We don't want an all or nothing approach, so we allow for small variations
-  # in this number.
-  #   1) build a table of the frequency of each character on every line.
-  #   2) build a table of frequencies of this frequency (meta-frequency?), e.g. 'x occurred 5
-  #      times in 10 rows, 6 times in 1000 rows, 7 times in 2 rows'
-  #   3) use the mode of the meta-frequency to determine the /expected/ frequency for that
-  #      character
-  #   4) find out how often the character actually meets that goal
-  #   5) the character that best meets its goal is the delimiter
-  # For performance reasons, the data is evaluated in chunks, so it can try and evaluate the
-  # smallest portion of the data possible, evaluating additional chunks as necessary.
-  defp guess_delimiter(%Dialect{delimiter: nil} = dialect, sample) do
-    # inside this function, we can be sure there's no escape character ...
-    newline = find_newline_character(sample)
-
-    split_sample =
-      sample
-      |> String.split(newline)
-      |> Stream.reject(&(String.trim(&1) == ""))
-
-    initial_acc = %{frequency_tables: %{}, total: 0}
-
-    delimiter =
-      split_sample
-      |> Stream.chunk_every(10)
-      |> Enum.reduce_while(initial_acc, fn chunk,
-                                           %{frequency_tables: frequency_tables, total: total} ->
-        new_total = total + length(chunk)
-        updated_frequency_tables = build_frequency_tables(chunk, frequency_tables)
-
-        possible_delimiters =
-          updated_frequency_tables
-          |> get_mode_of_the_frequencies()
-          |> build_a_list_of_possible_delimiters(new_total)
-          |> Enum.filter(fn {k, _v} -> Enum.member?(@delimiters, k) end)
-          |> Enum.into(%{})
-
-        cont_or_halt = if possible_delimiters == %{}, do: :cont, else: :halt
-
-        {cont_or_halt,
-         %{
-           frequency_tables: updated_frequency_tables,
-           possible_delimiters: possible_delimiters,
-           total: new_total
-         }}
-      end)
-      |> Map.get(:possible_delimiters)
-      |> pick_delimiter()
-
-    %Dialect{dialect | delimiter: delimiter}
-  end
-
-  defp guess_delimiter(dialect, _sample) do
-    dialect
   end
 
   @seven_bit_ascii Enum.into(0..127, %{}, &{&1, 0})
