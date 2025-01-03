@@ -1,0 +1,41 @@
+# Based on https://github.com/asdf-vm/asdf/issues/1193#issuecomment-1201385846
+
+name: Update asdf dependencies
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 17 * * *"
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update_asdf:
+    runs-on: ubuntu-latest
+    name: Update asdf
+    steps:
+      - uses: actions/checkout@v4
+      # Set the user based on https://github.com/actions/checkout/issues/13#issuecomment-724415212
+      - run: |
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+      - uses: asdf-vm/actions/plugins-add@v3
+      - name: update Erlang
+        uses: ./.github/actions/update-asdf
+        with:
+          language: "erlang"
+          latest-version: "asdf list all erlang | grep -v rc | tail -1"
+          docker-image-prefix: "OTP_VERSION="
+          release-notes: "https://www.erlang.org/patches/otp-"
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: update Elixir
+        uses: ./.github/actions/update-asdf
+        with:
+          language: "elixir"
+          current-version-filter: "cut -d- -f1"
+          latest-version: asdf list all elixir | grep -v otp | grep '^[0-9]' | grep -v rc | tail -1
+          docker-image-prefix: "ELIXIR_VERSION="
+          release-notes: "https://github.com/elixir-lang/elixir/releases/tag/v"
+          token: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,61 @@
+# Based on https://github.com/asdf-vm/asdf/issues/1193#issuecomment-1201385846
+
+name: "Update asdf-managed language"
+description: "Update the versions of a language in .tool-versions"
+inputs:
+  language:
+    description: "Language to update"
+    required: true
+  current-version-filter:
+    description: "Filter to apply to the current version"
+    required: false
+    default: "cat"
+  latest-version:
+    description: "Command to get the latest relevant version"
+    required: true
+  docker-image-prefix:
+    description: "Dockerfile image name prefix to grep for"
+    required: true
+  release-notes:
+    description: "Release notes URL prefix"
+    required: true
+  token:
+    description: "GitHub access token"
+    required: true
+runs:
+  using: composite
+  steps:
+    - id: current
+      run: |
+        version=$(cat .tool-versions | grep ${{ inputs.language }} | cut -d' ' -f2 | ${{ inputs.current-version-filter }})
+        echo "version=$version" >> $GITHUB_OUTPUT
+      shell: bash
+    - id: latest
+      run: |
+        version=$(${{ inputs.latest-version }})
+        echo "version=$version" >> $GITHUB_OUTPUT
+      shell: bash
+    - id: update
+      if: steps.current.outputs.version != steps.latest.outputs.version
+      run: |
+        current=${{ steps.current.outputs.version }}
+        latest=${{ steps.latest.outputs.version }}
+        original_branch=$(git rev-parse --abbrev-ref HEAD)
+        new_branch="update-${{ inputs.language }}-$latest"
+        git fetch
+        if git branch --list --all | grep -q $new_branch
+        then
+          echo 'update already proposed, skipping'
+        else
+          git checkout -b $new_branch
+          sed -i "s/${{ inputs.language }} $current/${{ inputs.language }} $latest/" .tool-versions
+          git add .tool-versions
+          git config user.name "automated asdf updates"
+          git commit -m "Update ${{ inputs.language }} to $latest"
+          git push origin $new_branch
+          gh pr create --title "Update ${{ inputs.language }} to $latest" --body "$(printf '[Release notes](${{ inputs.release-notes }}%s)\nIgnore by closing PR but not deleting branch' $latest)"
+          git checkout $original_branch
+        fi
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.token }}
