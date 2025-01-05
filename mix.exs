@@ -8,7 +8,7 @@ defmodule CsvSniffer.MixProject do
     [
       app: :csv_sniffer,
       version: @version,
-      elixir: "~> 1.9",
+      elixir: "~> 1.14",
       name: "CsvSniffer",
       description: "An Elixir port of Python's CSV Sniffer.",
       start_permanent: Mix.env() == :prod,
