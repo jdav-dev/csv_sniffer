@@ -92,23 +92,30 @@ defmodule CsvSniffer do
 
   defp reduce_zipped_matches(zipped_matches, acc, delimiters) do
     Enum.reduce(zipped_matches, acc, fn
-      {"quote", value}, acc ->
-        update_in(acc, [:quote, value], &((&1 || 0) + 1))
-
-      {"delim", value}, acc ->
-        if !delimiters || value in delimiters do
-          update_in(acc, [:delim, value], &((&1 || 0) + 1))
-        else
-          acc
-        end
-
-      {"space", value}, acc ->
-        if is_nil(value) or value == "" do
-          acc
-        else
-          Map.update(acc, :space, 1, &((&1 || 0) + 1))
-        end
+      {"quote", value}, acc -> handle_quote_match(acc, value)
+      {"delim", value}, acc -> handle_delim_match(acc, value, delimiters)
+      {"space", value}, acc -> handle_space_match(acc, value)
     end)
+  end
+
+  defp handle_quote_match(acc, value) do
+    update_in(acc, [:quote, value], &((&1 || 0) + 1))
+  end
+
+  defp handle_delim_match(acc, value, delimiters) do
+    if is_nil(delimiters) or value in delimiters do
+      update_in(acc, [:delim, value], &((&1 || 0) + 1))
+    else
+      acc
+    end
+  end
+
+  defp handle_space_match(acc, value) do
+    if is_nil(value) or value == "" do
+      acc
+    else
+      Map.update(acc, :space, 1, &((&1 || 0) + 1))
+    end
   end
 
   defp pick_count_winners(%{quote: quotes, delim: delimiters, space: spaces}) do
@@ -136,7 +143,7 @@ defmodule CsvSniffer do
          %Dialect{delimiter: delimiter, quote_character: quote_character} = dialect,
          sample
        )
-       when not is_nil(delimiter) and not is_nil(quote_character) do
+       when is_binary(delimiter) and is_binary(quote_character) do
     escaped_delimiter = Regex.escape(delimiter)
     escaped_quote_character = Regex.escape(quote_character)
 
@@ -234,48 +241,66 @@ defmodule CsvSniffer do
   end
 
   defp get_mode_of_the_frequencies(frequency_tables) do
-    Enum.reduce(frequency_tables, %{}, fn
-      {_character, %{0 => _} = items}, acc when map_size(items) == 1 ->
-        acc
+    Enum.reduce(frequency_tables, %{}, &reduce_frequency_table/2)
+  end
 
-      # Limit to 7-bit ASCII characters
-      {character, items}, acc when 0 <= character and character <= 127 ->
-        {frequency, meta_frequency} = Enum.max_by(items, &elem(&1, 1))
-        {_, remaining_items} = Map.pop(items, frequency)
+  defp reduce_frequency_table({_character, %{0 => _meta_frequency} = items}, acc)
+       when map_size(items) == 1 do
+    acc
+  end
 
-        # adjust the mode - subtract the sum of all other frequencies
-        adjusted_mode =
-          {frequency, meta_frequency - (remaining_items |> Map.values() |> Enum.sum())}
+  defp reduce_frequency_table({character, items}, acc)
+       when 0 <= character and character <= 127 do
+    {frequency, meta_frequency} = Enum.max_by(items, &elem(&1, 1))
+    {_meta_frequency, remaining_items} = Map.pop(items, frequency)
 
-        Map.put(acc, <<character>>, adjusted_mode)
+    adjusted_mode = adjust_mode(frequency, meta_frequency, remaining_items)
+    Map.put(acc, <<character>>, adjusted_mode)
+  end
 
-      _character_and_frequencies, acc ->
-        acc
-    end)
+  defp reduce_frequency_table(_character_and_frequencies, acc) do
+    acc
+  end
+
+  defp adjust_mode(frequency, meta_frequency, remaining_items) do
+    remaining_sum =
+      remaining_items
+      |> Map.values()
+      |> Enum.sum()
+
+    {frequency, meta_frequency - remaining_sum}
   end
 
   @min_consistency_threshold 0.9
 
   defp build_a_list_of_possible_delimiters(modes, total, delimiters, consistency \\ 1.0) do
     possible_delimiters =
-      Enum.reduce(modes, %{}, fn
-        {delimiter, {frequency, meta_frequency} = value}, acc
-        when frequency > 0 and meta_frequency > 0 and meta_frequency / total >= consistency ->
-          if is_nil(delimiters) or delimiter in delimiters do
-            Map.put(acc, delimiter, value)
-          else
-            acc
-          end
-
-        _delimiter_and_frequency, acc ->
-          acc
-      end)
+      Enum.reduce(modes, %{}, &reduce_modes(&1, &2, total, delimiters, consistency))
 
     if possible_delimiters == %{} and consistency > @min_consistency_threshold do
       build_a_list_of_possible_delimiters(modes, total, delimiters, consistency - 0.01)
     else
       possible_delimiters
     end
+  end
+
+  defp reduce_modes(
+         {delimiter, {frequency, meta_frequency} = value},
+         acc,
+         total,
+         delimiters,
+         consistency
+       )
+       when frequency > 0 and meta_frequency > 0 and meta_frequency / total >= consistency do
+    if is_nil(delimiters) or delimiter in delimiters do
+      Map.put(acc, delimiter, value)
+    else
+      acc
+    end
+  end
+
+  defp reduce_modes(_delimiter_and_frequency, acc, _total, _delimiters, _consistency) do
+    acc
   end
 
   defp pick_delimiter(possible_delimiters) when map_size(possible_delimiters) == 1 do
