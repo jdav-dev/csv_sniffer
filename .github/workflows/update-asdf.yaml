@@ -27,7 +27,6 @@ jobs:
         with:
           language: "erlang"
           latest-version: "asdf list all erlang | grep -v rc | tail -1"
-          docker-image-prefix: "OTP_VERSION="
           release-notes: "https://www.erlang.org/patches/otp-"
           token: ${{ secrets.GITHUB_TOKEN }}
       - name: update Elixir
@@ -36,6 +35,5 @@ jobs:
           language: "elixir"
           current-version-filter: "cut -d- -f1"
           latest-version: asdf list all elixir | grep -v otp | grep '^[0-9]' | grep -v rc | tail -1
-          docker-image-prefix: "ELIXIR_VERSION="
           release-notes: "https://github.com/elixir-lang/elixir/releases/tag/v"
           token: ${{ secrets.GITHUB_TOKEN }}

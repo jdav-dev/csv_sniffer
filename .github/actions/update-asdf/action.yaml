@@ -13,9 +13,6 @@ inputs:
   latest-version:
     description: "Command to get the latest relevant version"
     required: true
-  docker-image-prefix:
-    description: "Dockerfile image name prefix to grep for"
-    required: true
   release-notes:
     description: "Release notes URL prefix"
     required: true
