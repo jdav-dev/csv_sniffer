@@ -16,12 +16,13 @@ jobs:
   test:
     strategy:
       matrix:
-        elixir: ["1.18.1"]
-        otp: ["27.2"]
+        os: ["ubuntu-24.04", "ubuntu-22.04", "ubuntu-20.04", "windows-2022"]
+        elixir: ["1.18.1", "1.17.3", "1.16.3", "1.15.8", "1.14.5", "1.13.4"]
+        otp: ["27.2", "26.2.5.6", "25.3.2.16"]
 
-    runs-on: ubuntu-20.04
+    runs-on: ${{ matrix.os }}
 
-    name: Elixir ${{ matrix.elixir }} / OTP ${{ matrix.otp }}
+    name: ${{ matrix.os }} / Elixir ${{ matrix.elixir }} / OTP ${{ matrix.otp }}
 
     steps:
       - name: Checkout code

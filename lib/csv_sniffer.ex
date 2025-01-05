@@ -221,7 +221,7 @@ defmodule CsvSniffer do
     dialect
   end
 
-  @seven_bit_ascii Enum.into(0..127, %{}, &{&1, 0})
+  @seven_bit_ascii Map.new(0..127, &{&1, 0})
 
   defp build_frequency_tables(data, acc) do
     data
@@ -250,6 +250,7 @@ defmodule CsvSniffer do
   end
 
   defp reduce_frequency_table({character, items}, acc)
+       # Limit to 7-bit ASCII characters
        when 0 <= character and character <= 127 do
     {frequency, meta_frequency} = Enum.max_by(items, &elem(&1, 1))
     {_meta_frequency, remaining_items} = Map.pop(items, frequency)
