@@ -17,9 +17,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ["ubuntu-24.04", "ubuntu-22.04", "ubuntu-20.04", "windows-2022"]
         elixir: ["1.18.1", "1.17.3", "1.16.3", "1.15.8", "1.14.5", "1.13.4"]
-        otp: ["27.2", "26.2.5.6", "25.3.2.16"]
+        otp: ["27.2", "26.2.5.6"]
         exclude:
           - elixir: "1.16.3"
             otp: "27.2"
@@ -32,9 +31,9 @@ jobs:
           - elixir: "1.13.4"
             otp: "26.2.5.6"
 
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
 
-    name: ${{ matrix.os }} / Elixir ${{ matrix.elixir }} / OTP ${{ matrix.otp }}
+    name: Elixir ${{ matrix.elixir }} / OTP ${{ matrix.otp }}
 
     steps:
       - name: Checkout code
@@ -59,9 +58,9 @@ jobs:
           cache-name: cache-elixir-deps
         with:
           path: deps
-          key: ${{ runner.os }}-mix-${{ env.cache-name }}-${{ hashFiles('**/mix.lock') }}
+          key: ${{ runner.os }}-${{ matrix.elixir }}-${{ matrix.otp }}-mix-${{ env.cache-name }}-${{ hashFiles('**/mix.lock') }}
           restore-keys: |
-            ${{ runner.os }}-mix-${{ env.cache-name }}-
+            ${{ runner.os }}-${{ matrix.elixir }}-${{ matrix.otp }}-mix-${{ env.cache-name }}-
 
       - name: Cache compiled build
         id: cache-build
@@ -70,10 +69,10 @@ jobs:
           cache-name: cache-compiled-build
         with:
           path: _build
-          key: ${{ runner.os }}-mix-${{ env.cache-name }}-${{ hashFiles('**/mix.lock') }}
+          key: ${{ runner.os }}-${{ matrix.elixir }}-${{ matrix.otp }}-mix-${{ env.cache-name }}-${{ hashFiles('**/mix.lock') }}
           restore-keys: |
-            ${{ runner.os }}-mix-${{ env.cache-name }}-
-            ${{ runner.os }}-mix-
+            ${{ runner.os }}-${{ matrix.elixir }}-${{ matrix.otp }}-mix-${{ env.cache-name }}-
+            ${{ runner.os }}-${{ matrix.elixir }}-${{ matrix.otp }}-mix-
 
       - name: Clean to rule out incremental build as a source of flakiness
         if: github.run_attempt != '1'
