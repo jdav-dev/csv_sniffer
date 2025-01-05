@@ -1,68 +1,105 @@
 name: Elixir CI
 
-on: push
+# Define workflow that runs when changes are pushed to the `main` branch or pushed to a PR branch
+# that targets the `main` branch.
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+  # Allow manually running workflow from GitHub UI
+  workflow_dispatch:
+
+env:
+  MIX_ENV: test
 
 jobs:
-  compile:
-    runs-on: ubuntu-latest
-    container:
-      image: elixir:1.9.4-slim
-    env:
-      MIX_ENV: prod
-    steps:
-      - uses: actions/checkout@v1
-      - name: install dependencies
-        run: |
-          mix local.rebar --force
-          mix local.hex --force
-          mix deps.get --only prod
-      - name: compile
-        run: mix compile --force
-
   test:
-    runs-on: ubuntu-latest
-    container:
-      image: elixir:1.9.4-slim
-    env:
-      MIX_ENV: test
-    steps:
-      - uses: actions/checkout@v1
-      - name: install dependencies
-        run: |
-          mix local.rebar --force
-          mix local.hex --force
-          mix deps.get --only test
-      - name: test
-        run: mix test --cover --trace
-      - name: archive code coverage
-        uses: actions/upload-artifact@v1
-        with:
-          name: cover
-          path: cover
+    strategy:
+      fail-fast: false
+      matrix:
+        elixir: ["1.18", "1.17", "1.16", "1.15", "1.14"]
+        otp: ["27", "26"]
+        exclude:
+          - elixir: "1.16"
+            otp: "27"
+          - elixir: "1.15"
+            otp: "27"
+          - elixir: "1.14"
+            otp: "27"
 
-  static_code_analysis:
     runs-on: ubuntu-latest
-    container:
-      image: elixir:1.9.4-slim
-    env:
-      MIX_ENV: dev
+
+    name: Elixir ${{ matrix.elixir }} / OTP ${{ matrix.otp }}
+
     steps:
-      - uses: actions/checkout@v1
-      - name: install dependencies
-        run: |
-          mix local.rebar --force
-          mix local.hex --force
-          mix deps.get --only dev
-      - name: plt cache
-        uses: actions/cache@v1.1.0
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Restore file modification timestamps
+        uses: chetan/git-restore-mtime-action@v2
+
+      - name: Set up Elixir
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: ${{ matrix.elixir }}
+          otp-version: ${{ matrix.otp }}
+          version-type: strict
+
+      - name: Cache deps
+        id: cache-deps
+        uses: actions/cache@v4
+        env:
+          cache-name: cache-elixir-deps
+        with:
+          path: deps
+          key: ${{ runner.os }}-${{ matrix.elixir }}-${{ matrix.otp }}-mix-${{ env.cache-name }}-${{ hashFiles('**/mix.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.elixir }}-${{ matrix.otp }}-mix-${{ env.cache-name }}-
+
+      - name: Cache compiled build
+        id: cache-build
+        uses: actions/cache@v4
+        env:
+          cache-name: cache-compiled-build
         with:
           path: _build
-          key: ${{ runner.os }}-plt-${{ env.GITHUB_REF }}
+          key: ${{ runner.os }}-${{ matrix.elixir }}-${{ matrix.otp }}-mix-${{ env.cache-name }}-${{ hashFiles('**/mix.lock') }}
           restore-keys: |
-            ${{ runner.os }}-plt-
-      - name: formatted?
-        run: mix format --check-formatted --dry-run
-      - name: credo
-        run: mix credo --verbose
-      - name: dialyzer
-        run: mix dialyzer --halt-exit-status
+            ${{ runner.os }}-${{ matrix.elixir }}-${{ matrix.otp }}-mix-${{ env.cache-name }}-
+            ${{ runner.os }}-${{ matrix.elixir }}-${{ matrix.otp }}-mix-
+
+      - name: Clean to rule out incremental build as a source of flakiness
+        if: github.run_attempt != '1'
+        run: |
+          mix deps.clean --all
+          mix clean
+        shell: sh
+
+      - name: Install dependencies
+        run: mix deps.get
+
+      - name: Compiles without warnings
+        run: mix compile --warnings-as-errors
+
+      - name: Check Formatting
+        run: mix format --check-formatted
+
+      - name: Scan Mix dependencies for security vulnerabilities
+        run: mix deps.audit
+
+      - name: Check for retired dependencies
+        run: mix hex.audit
+
+      - name: Check for unused dependencies
+        run: mix deps.unlock --check-unused
+
+      - name: Run Credo
+        run: mix credo
+
+      - name: Run tests
+        run: mix test
+
+      - name: Run Dialyzer
+        run: mix dialyzer
