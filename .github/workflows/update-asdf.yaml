@@ -5,7 +5,7 @@ name: Update asdf dependencies
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 17 * * *"
+    - cron: "0 0 1 1 *"
 
 permissions:
   contents: write
