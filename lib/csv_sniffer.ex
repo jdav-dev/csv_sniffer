@@ -119,19 +119,21 @@ defmodule CsvSniffer do
     |> check_quoted_values(sample)
   end
 
-  @quote_regex [
-    # ,".*?",
-    ~r'(?P<delim>#{@delimiters_regex})(?P<quote>["\']).*?(?P=quote)(?P=delim)'sm,
-    #  ".*?",
-    ~r'(?:^|\n)(?P<quote>["\']).*?(?P=quote)(?P<delim>#{@delimiters_regex})'sm,
-    # ,".*?"
-    ~r'(?P<delim>#{@delimiters_regex})(?P<quote>["\']).*?(?P=quote)(?:$|\n)'sm,
-    #  ".*?" (no delim)
-    ~r'(?:^|\n)(?P<quote>["\']).*?(?P=quote)(?:$|\n)'sm
-  ]
+  def quote_regex do
+    [
+      # ,".*?",
+      ~r'(?P<delim>#{@delimiters_regex})(?P<quote>["\']).*?(?P=quote)(?P=delim)'sm,
+      #  ".*?",
+      ~r'(?:^|\n)(?P<quote>["\']).*?(?P=quote)(?P<delim>#{@delimiters_regex})'sm,
+      # ,".*?"
+      ~r'(?P<delim>#{@delimiters_regex})(?P<quote>["\']).*?(?P=quote)(?:$|\n)'sm,
+      #  ".*?" (no delim)
+      ~r'(?:^|\n)(?P<quote>["\']).*?(?P=quote)(?:$|\n)'sm
+    ]
+  end
 
   defp run_quote_regex(sample) do
-    Enum.find_value(@quote_regex, {[], []}, fn regex ->
+    Enum.find_value(quote_regex(), {[], []}, fn regex ->
       names = Regex.names(regex)
 
       with matches <- Regex.scan(regex, sample, capture: :all_names),
