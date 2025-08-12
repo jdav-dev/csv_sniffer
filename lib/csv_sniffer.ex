@@ -27,7 +27,7 @@ defmodule CsvSniffer do
       {:ok, %CsvSniffer.Dialect{
         delimiter: ",",
         quote_character: nil,
-        double_quote: false
+        quote_needed: false
       }}
 
   """
