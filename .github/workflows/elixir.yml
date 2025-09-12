@@ -18,7 +18,7 @@ jobs:
       fail-fast: false
       matrix:
         elixir: ["1.18", "1.17", "1.16", "1.15", "1.14"]
-        otp: ["27", "26"]
+        otp: ["28", "27", "26"]
         exclude:
           - elixir: "1.16"
             otp: "27"
@@ -45,7 +45,6 @@ jobs:
         with:
           elixir-version: ${{ matrix.elixir }}
           otp-version: ${{ matrix.otp }}
-          version-type: strict
 
       - name: Cache deps
         id: cache-deps
