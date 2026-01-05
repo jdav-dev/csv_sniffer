@@ -17,9 +17,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        elixir: ["1.18", "1.17", "1.16", "1.15", "1.14"]
+        elixir: ["1.19", "1.18", "1.17", "1.16", "1.15", "1.14"]
         otp: ["27", "26"]
         include:
+          - elixir: "1.19"
+            otp: "28"
           - elixir: "1.18"
             otp: "28"
         exclude:
@@ -51,7 +53,7 @@ jobs:
 
       - name: Cache deps
         id: cache-deps
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         env:
           cache-name: cache-elixir-deps
         with:
@@ -62,7 +64,7 @@ jobs:
 
       - name: Cache compiled build
         id: cache-build
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         env:
           cache-name: cache-compiled-build
         with:
