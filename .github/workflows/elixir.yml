@@ -38,7 +38,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -53,7 +53,7 @@ jobs:
 
       - name: Cache deps
         id: cache-deps
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         env:
           cache-name: cache-elixir-deps
         with:
@@ -64,7 +64,7 @@ jobs:
 
       - name: Cache compiled build
         id: cache-build
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         env:
           cache-name: cache-compiled-build
         with:
